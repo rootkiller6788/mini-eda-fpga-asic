@@ -1,0 +1,310 @@
+===============================================================================
+  mini-eda-tools API Reference (C99)
+===============================================================================
+
+CONTENTS:
+  1. Synthesis API
+  2. Place & Route API
+  3. Static Timing Analysis API
+  4. Power Analysis API
+  5. DFM & Yield API
+
+===============================================================================
+1. SYNTHESIS API (synthesis.h)
+===============================================================================
+
+Types:
+  gate_type_e      - 门类型枚举 (GATE_AND ... GATE_NONE)
+  tech_vendor_e    - 工艺厂商 (TECH_TSMC, TECH_SMIC, ...)
+  bool_form_e      - 布尔形式 (BOOL_SOP, BOOL_AIG, ...)
+  std_cell_t       - 标准单元描述
+  gate_node_t      - 网表门节点
+  netlist_t        - 网表 (门列表 + 连接)
+  tech_lib_t       - 工艺库
+  synth_params_t   - 综合参数
+  synth_result_t   - 综合结果
+
+Netlist Operations:
+  syn_create_netlist(nl)           - 创建空网表
+  syn_add_gate(nl, type, name)     - 添加门
+  syn_connect(nl, src, sport, dst, dport) - 连接两个门
+  syn_set_pi(nl, gate_id)          - 标记为主输入
+  syn_set_po(nl, gate_id)          - 标记为主输出
+  syn_set_clock(nl, gate_id)       - 标记为时钟
+  syn_free_netlist(nl)             - 释放网表
+
+Library Operations:
+  syn_load_tech_lib(filename, lib) - 加载工艺库 (内置模板)
+  syn_find_cell(lib, type, area)   - 查找满足条件的单元
+
+Synthesis Flow:
+  syn_synthesize(nl, lib, params, result) - 完整综合流程
+  syn_run_rtl_elaborate(nl, params)       - RTL 精化
+  syn_run_boolean_optimize(nl)            - 布尔优化
+  syn_run_tech_map(nl, lib, params)       - 技术映射
+  syn_run_fanout_repair(nl, max_fanout)   - 扇出修复
+  syn_run_clock_gating(nl)                - 时钟门控插入
+  syn_run_retiming(nl, period)            - 重定时
+  syn_decompose_aig(nl)                   - AIG 分解
+  syn_area_recovery(nl, lib)              - 面积恢复
+  syn_constant_propagation(nl)            - 常量传播
+  syn_dead_code_elimination(nl)           - 死代码消除
+
+Analysis:
+  syn_estimate_area(nl, lib)       - 估算面积
+  syn_estimate_delay(nl, lib)      - 估算延迟
+  syn_count_cells(nl)              - 计数非IO单元
+
+Output:
+  syn_print_netlist(nl)            - 打印网表
+  syn_print_stats(result)          - 打印综合统计
+  syn_write_verilog(nl, filename)   - 写出 Verilog
+
+===============================================================================
+2. PLACE & ROUTE API (place_route.h)
+===============================================================================
+
+Types:
+  place_algo_e         - 布局算法选择
+  route_algo_e         - 布线算法选择
+  place_cell_t         - 布局单元
+  die_area_t           - 芯片区域
+  place_net_t          - 布局网
+  congestion_map_t     - 拥塞图
+  place_params_t       - 布局参数
+  route_params_t       - 布线参数
+  place_instance_t     - 布局实例
+  place_result_t       - 布局结果
+  route_net_t          - 布线网
+  route_segment_t      - 布线线段
+  route_result_t       - 布线结果
+
+Placement Operations:
+  pr_create_place(inst, ncells)      - 创建布局实例
+  pr_set_die(inst, w,h, sw,sh, n)   - 设置芯片区域
+  pr_add_place_cell(inst, id, w,h)  - 添加布局单元
+  pr_add_place_net(inst, src,dst,w) - 添加布局网
+  pr_set_fixed_cell(inst, id, x,y)  - 固定单元位置
+  pr_free_place(inst)               - 释放布局实例
+
+Global Placement:
+  pr_global_place_quadratic(inst, r)  - 二次规划全局布局
+  pr_global_place_force(inst, r)      - 力导向全局布局
+  pr_global_place_sa(inst, r)         - 模拟退火全局布局
+  pr_run_global_place(inst, r)        - 按参数选择算法
+
+Detailed Placement:
+  pr_legalize(inst)                   - 合法化 (消除重叠)
+  pr_detailed_place(inst, r)          - 详细布局优化
+  pr_calc_hpwl(inst)                  - 计算 HPWL
+  pr_calc_rsmt(inst)                  - 估算 RSMT
+
+Congestion Map:
+  pr_create_congestion_map(inst, cmap) - 创建拥塞图
+  pr_update_congestion_map(cmap, rr)   - 更新拥塞图
+  pr_query_congestion(cmap, x,y,l)     - 查询网格拥塞
+  pr_print_congestion_map(cmap)        - 打印拥塞图
+  pr_free_congestion_map(cmap)         - 释放拥塞图
+
+Routing:
+  pr_route_maze(inst, rr)            - 迷宫布线
+  pr_route_astar(inst, rr)           - A* 布线
+  pr_run_global_route(inst, rr)      - 全局布线
+  pr_run_detail_route(inst, rr)      - 详细布线
+  pr_ripup_reroute(inst, rr, iters)  - 撕裂重布
+  pr_count_drc(rr)                   - 统计 DRC 违规
+  pr_total_wirelength(rr)            - 总线长
+  pr_total_vias(rr)                  - 总通孔数
+
+Net-level Operations:
+  pr_route_single_net(inst, nid, rr)   - 单网布线
+  pr_check_antenna(rr, nid)            - 天线效应检查
+  pr_add_redundant_via(rr, nid)        - 添加冗余通孔
+
+Export:
+  pr_export_def(inst, file)          - 导出 DEF 格式
+  pr_export_lef(die, file)           - 导出 LEF 格式
+  pr_print_place_result(r)           - 打印布局结果
+  pr_print_route_result(r)           - 打印布线结果
+
+===============================================================================
+3. STATIC TIMING API (static_timing.h)
+===============================================================================
+
+Types:
+  arc_type_e       - 时序弧类型
+  edge_type_e      - 边沿类型 (RISE/FALL)
+  path_type_e      - 路径类型
+  timing_arc_t     - 时序弧 (延迟 + 压摆)
+  timing_node_t    - 时序节点 (到达/要求/裕量)
+  timing_graph_t   - 时序图
+  clock_def_t      - 时钟定义
+  io_constraint_t  - IO 约束
+  timing_derate_t  - 时序降额因子
+  constraints_t    - 约束集
+  timing_path_t    - 时序路径
+  sta_result_t     - STA 结果
+  delay_model_t    - 延迟模型
+
+Graph Operations:
+  sta_create_graph(graph, nl)       - 从网表创建时序图
+  sta_build_timing_graph(g,nl,con)  - 构建完整时序图
+  sta_free_graph(graph)             - 释放时序图
+  sta_add_node(graph, name, isff)   - 添加节点
+  sta_add_arc(g,from,to,type,d,w)   - 添加时序弧
+  sta_set_node_slew(g,id,slew)      - 设置节点压摆
+  sta_set_node_load(g,id,cap)       - 设置节点负载
+
+Constraints:
+  sta_init_constraints(con)              - 初始化约束
+  sta_free_constraints(con)              - 释放约束
+  sta_add_clock(con,name,per,sk,jit)     - 添加时钟
+  sta_set_io_delay(con,name,in,del,sl)   - 设置 IO 延迟
+
+Delay Calculation:
+  sta_run_delay_calc(graph, model)  - 全图延迟计算
+  sta_calc_gate_delay(cell,sw,co,e) - 门延迟
+  sta_calc_wire_delay(len,cp,rp)    - 线延迟 (Elmore)
+  sta_calc_elmore_delay(r,ctot,ct)  - Elmore 延迟
+
+Analysis:
+  sta_run_analysis(graph, con, res)     - 完整 STA
+  sta_forward_propagate(graph, clk, der) - 正向传播
+  sta_backward_propagate(graph, clk, der)- 反向传播
+  sta_calc_slack(graph)                 - 计算裕量
+  sta_get_slack(graph, nid, edge)       - 获取节点裕量
+
+Results:
+  sta_get_critical_path(graph, res)     - 获取关键路径
+  sta_get_worst_paths(graph, res, n)    - 获取最差 N 条路径
+  sta_report_timing(graph, res, n)      - 时序报告
+  sta_print_path(path)                  - 打印路径
+  sta_print_result(res)                 - 打印结果
+
+===============================================================================
+4. POWER ANALYSIS API (power_analysis.h)
+===============================================================================
+
+Types:
+  power_component_e  - 功耗组成
+  vt_level_e         - 阈值电压级别
+  clock_gating_e     - 时钟门控模式
+  switching_activity_t - 开关活动性
+  activity_file_t    - 活动性文件
+  power_report_t     - 功耗报告
+  power_params_t     - 功耗分析参数
+  gate_power_t       - 门级功耗
+  power_analysis_t   - 功耗分析实例
+  power_domain_t     - 功耗域
+
+Analysis:
+  paw_create_analysis(analysis, nl)             - 创建功耗分析
+  paw_free_analysis(analysis)                   - 释放功耗分析
+
+Activity:
+  paw_load_activity_file(act, file)             - 加载活动性文件
+  paw_set_activity(act, id, prob, toggle)       - 设置信号活动性
+  paw_estimate_activity(act, nl)                - 估算活动性
+  paw_free_activity(act)                        - 释放活动性
+
+Power Calculation:
+  paw_calc_dynamic_power(a, nl, lib, act)      - 动态功耗
+  paw_calc_static_power(a, nl, lib)            - 静态功耗
+  paw_calc_clock_power(a, nl, lib, sta)        - 时钟树功耗
+  paw_run_analysis(a, nl, lib, act, sta)       - 完整功耗分析
+  paw_generate_report(a, report)               - 生成报告
+  paw_print_report(report)                      - 打印报告
+
+Formulas:
+  paw_switching_power(C, Vdd, f, alpha)        - P = αCV²f
+  paw_short_circuit_power(Isc, Vdd)            - Psc = Isc × Vdd
+  paw_internal_power(cell, slew, cap, edge)    - 内部功耗
+  paw_gate_leakage(cell, Vdd, temp)            - 门漏电
+  paw_subthreshold_leakage(Vth, Vdd, temp)     - 亚阈值漏电
+  paw_gate_leakage_current(tox, area)          - 栅漏电
+
+Optimization:
+  paw_apply_clock_gating(a, nl, mode)          - 时钟门控
+  paw_apply_multi_vt(a, nl, lib, max_delay)   - 多阈值优化
+  paw_apply_power_gating(a, nl, doms, n)       - 电源门控
+  paw_apply_gate_sizing(a, nl, lib)            - 门尺寸优化
+
+Summary:
+  paw_total_dynamic(report)                    - 总动态功耗
+  paw_total_static(report)                     - 总静态功耗
+  paw_energy_per_op(a, freq)                   - 每操作能量
+
+===============================================================================
+5. DFM & YIELD API (dfm_yield.h)
+===============================================================================
+
+Types:
+  drc_type_e        - DRC 违规类型
+  litho_type_e      - 光刻类型
+  cmp_material_e    - CMP 材料
+  drc_violation_t   - DRC 违规记录
+  drc_report_t      - DRC 报告
+  litho_params_t    - 光刻参数
+  litho_result_t    - 光刻结果
+  cmp_params_t      - CMP 参数
+  cmp_result_t      - CMP 结果
+  yield_model_e     - 良率模型
+  yield_params_t    - 良率参数
+  yield_report_t    - 良率报告
+  design_rules_t    - 设计规则
+  dfm_params_t      - DFM 参数
+  metal_fill_t      - 金属填充
+  antenna_check_t   - 天线检查
+
+Design Rules:
+  dfm_init_design_rules(rules, layers)    - 初始化设计规则
+  dfm_set_layer_rule(rules, l,w,s,e,a)    - 设置层规则
+  dfm_print_rules(rules)                  - 打印规则
+
+DRC:
+  dfm_run_drc(nl, rules, report)          - 逻辑 DRC
+  dfm_run_drc_physical(rr, rules, report) - 物理 DRC
+  dfm_check_metal_width(rr,n,s,rules,r)   - 宽度检查
+  dfm_check_metal_space(cmap,x,y,l,rl,r)  - 间距检查
+  dfm_check_via_enclosure(rr,n,v,rules,r) - 通孔包围检查
+  dfm_check_antenna(rr, n, rules, r)      - 天线检查
+  dfm_check_density(cmap, l, rules, r)    - 密度检查
+  dfm_free_drc_report(report)             - 释放 DRC 报告
+
+Lithography:
+  dfm_run_litho_sim(params, mask, mx, my, result) - 光刻模拟
+  dfm_opc_correction(params, mask, mx, my)        - OPC 校正
+  dfm_add_sraf(params, mask, mx, my)              - SRAF 插入
+  dfm_free_litho_result(result)                   - 释放光刻结果
+
+CMP:
+  dfm_run_cmp_sim(params, density, gx, gy, result) - CMP 模拟
+  dfm_cmp_fill_insertion(params, rules, cmap, fills, nf, max) - 填充
+  dfm_estimate_dishing(params, density, w, dish)   - 凹陷预测
+  dfm_free_cmp_result(result)                      - 释放 CMP 结果
+
+Yield:
+  dfm_predict_yield(params, report)                - 良率预测
+  dfm_poisson_yield(D0, Ac)                        - Poisson 模型
+  dfm_murphy_yield(D0, Ac)                         - Murphy 模型
+  dfm_seeds_yield(D0, Ac)                          - Seeds 模型
+  dfm_neg_binomial_yield(D0, Ac, alpha)            - 负二项模型
+  dfm_bose_einstein_yield(D0, Ac, N)               - Bose-Einstein 模型
+  dfm_calc_critical_area(cmap, defect_size)        - 关键面积
+  dfm_calc_dpw(diam, dw, dh, excl)                 - 每晶圆芯片数
+  dfm_cost_per_die(wafer_cost, good_dpw)           - 单芯片成本
+
+DFM Optimization:
+  dfm_run_redundant_via_insertion(rr, rules, max)   - 冗余通孔
+  dfm_run_wire_spreading(cmap, rules)              - 线展宽
+  dfm_run_metal_fill(cmap, rules, cmp, fills, nf, m)- 金属填充
+  dfm_run_antenna_fix(rr, rules)                   - 天线修复
+
+Reports:
+  dfm_generate_report(drc, litho, cmp, yield, file) - 综合报告
+  dfm_print_drc_report(report)                      - 打印 DRC 报告
+  dfm_print_yield_report(report)                    - 打印良率报告
+  dfm_print_litho_result(result)                    - 打印光刻结果
+  dfm_print_cmp_result(result)                      - 打印 CMP 结果
+
+===============================================================================
