@@ -220,6 +220,7 @@ bool tb_evaluate_monitor(TbTestbench *tb, TbMonitor *mon, int actual_value) {
 }
 
 void tb_update_coverage(TbTestbench *tb, TbCoveragePoint *cp, int value) {
+    (void)tb;
     for (int b = 0; b < cp->bin_count; b++) {
         if (value >= cp->bins[b].low && value <= cp->bins[b].high) {
             cp->bins[b].hit_count++;

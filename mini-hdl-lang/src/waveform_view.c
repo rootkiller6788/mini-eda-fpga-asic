@@ -133,10 +133,8 @@ bool wv_parse_vcd_changes(WvVcdData *vcd) {
         } else if (isdigit((unsigned char)*p) || *p == 'x' || *p == 'X' ||
                    *p == 'z' || *p == 'Z') {
             char val[8] = {*p, '\0'};
-            char id = 0;
             int idx = 1;
             while (p[idx] && !isspace((unsigned char)p[idx]) && p[idx] != '\n' && p[idx] != '\r') idx++;
-            id = p[idx - 1];
             wv_add_value_change(vcd, -1, current_time, val);
         }
     }
@@ -248,7 +246,7 @@ void wv_get_signal_range(const WvSignal *sig, uint64_t start, uint64_t end,
         if (sig->changes[c].time >= start && sig->changes[c].time <= end) count++;
     }
     if (count > 0) {
-        *out_changes = &sig->changes[0];
+        *out_changes = (WvValueChange *)&sig->changes[0];
         *out_count = count;
     }
 }
@@ -309,9 +307,6 @@ void wv_render_signal_trace(const WvSignal *sig, uint64_t start, uint64_t end,
 
     uint64_t range = end - start;
     if (range == 0) range = 1;
-
-    char prev_val[64] = "x";
-    int prev_col = 0;
 
     for (int x = 0; x < display_width; x++) {
         uint64_t t = start + (range * (uint64_t)x) / (uint64_t)display_width;

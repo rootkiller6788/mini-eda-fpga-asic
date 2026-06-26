@@ -1,73 +1,126 @@
-# Makefile — mini-hardware-verification
+# mini-hardware-verification Makefile
+# Hardware Functional Verification Framework
+#
+# Usage:
+#   make        - build all libraries and tests
+#   make test   - build and run tests
+#   make examples - build example programs
+#   make clean  - remove build artifacts
+#   make all    - build everything (lib, tests, examples)
+
 CC       = gcc
-CFLAGS   = -std=c99 -Wall -Wextra -O2 -I.
+CFLAGS   = -std=c11 -Wall -Wextra -O2 -g
+INC      = -I./include
 LDFLAGS  = -lm
 
-# Headers
-HDRS = uvm_methodology.h assertion_check.h formal_verify.h coverage_mdl.h verification_ip.h
+SRCDIR   = src
+INCDIR   = include
+TESTDIR  = tests
+EXDIR    = examples
+BUILDDIR = build
 
-# Sources
-SRCS = uvm_methodology.c assertion_check.c formal_verify.c coverage_mdl.c verification_ip.c
-OBJS = $(SRCS:.c=.o)
+# Source files
+SRCS     = $(wildcard $(SRCDIR)/*.c)
+OBJS     = $(patsubst $(SRCDIR)/%.c, $(BUILDDIR)/%.o, $(SRCS))
+
+# Headers
+HEADERS  = $(wildcard $(INCDIR)/*.h)
+
+# Test
+TEST_SRC = $(TESTDIR)/test_all.c
+TEST_BIN = $(BUILDDIR)/test_all
 
 # Examples
-EXAMPLES = example_uvm_tb example_assertion example_coverage
+EXAMPLES = $(BUILDDIR)/example_fifo_verify \
+           $(BUILDDIR)/example_riscv_verify \
+           $(BUILDDIR)/example_bus_verify
 
-# Demos
-DEMOS = demo_verif_flow demo_regression
+# Static library
+LIB      = $(BUILDDIR)/libhwverify.a
 
-# All targets
-ALL_TARGETS = $(EXAMPLES) $(DEMOS)
+.PHONY: all test examples clean dirs
 
-.PHONY: all clean test assertions coverage demo regression
+all: dirs $(LIB) $(TEST_BIN) $(EXAMPLES)
 
-all: $(ALL_TARGETS)
+dirs:
+	@mkdir -p $(BUILDDIR)
 
-# Object files from sources
-%.o: %.c $(HDRS)
-	$(CC) $(CFLAGS) -c $< -o $@
+# Library
+$(LIB): $(OBJS)
+	ar rcs $@ $^
 
-# Example: UVM Testbench
-example_uvm_tb: example_uvm_tb.c $(OBJS)
-	$(CC) $(CFLAGS) $< $(OBJS) $(LDFLAGS) -o $@
+# Object files
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c $(HEADERS)
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
 
-# Example: Assertions
-example_assertion: example_assertion.c $(OBJS)
-	$(CC) $(CFLAGS) $< $(OBJS) $(LDFLAGS) -o $@
+# Test binary
+$(TEST_BIN): $(TEST_SRC) $(LIB) $(HEADERS) | dirs
+	$(CC) $(CFLAGS) $(INC) $< -L$(BUILDDIR) -lhwverify $(LDFLAGS) -o $@
 
-# Example: Coverage
-example_coverage: example_coverage.c $(OBJS)
-	$(CC) $(CFLAGS) $< $(OBJS) $(LDFLAGS) -o $@
+# Example: FIFO verification
+$(EXAMPLES): | dirs
+$(BUILDDIR)/example_fifo_verify: $(EXDIR)/example_fifo_verify.c $(LIB) $(HEADERS)
+	$(CC) $(CFLAGS) $(INC) $< -L$(BUILDDIR) -lhwverify $(LDFLAGS) -o $@
 
-# Demo: Full Verification Flow
-demo_verif_flow: demo_verif_flow.c $(OBJS)
-	$(CC) $(CFLAGS) $< $(OBJS) $(LDFLAGS) -o $@
+# Example: RISC-V ALU verification
+$(BUILDDIR)/example_riscv_verify: $(EXDIR)/example_riscv_verify.c $(LIB) $(HEADERS)
+	$(CC) $(CFLAGS) $(INC) $< -L$(BUILDDIR) -lhwverify $(LDFLAGS) -o $@
 
-# Demo: Regression Testing
-demo_regression: demo_regression.c $(OBJS)
-	$(CC) $(CFLAGS) $< $(OBJS) $(LDFLAGS) -o $@
+# Example: AXI Bus verification
+$(BUILDDIR)/example_bus_verify: $(EXDIR)/example_bus_verify.c $(LIB) $(HEADERS)
+	$(CC) $(CFLAGS) $(INC) $< -L$(BUILDDIR) -lhwverify $(LDFLAGS) -o $@
 
-# Run tests
-test: example_uvm_tb
-	./example_uvm_tb
+# Run tests (make test - one-click pass)
+test: $(TEST_BIN)
+	@echo "========================================"
+	@echo "  mini-hardware-verification Test Suite"
+	@echo "========================================"
+	@echo ""
+	@LD_LIBRARY_PATH=$(BUILDDIR):$$LD_LIBRARY_PATH $(TEST_BIN)
+	@echo ""
+	@echo "Test suite complete."
 
-assertions: example_assertion
-	./example_assertion
+# Build examples
+examples: $(EXAMPLES)
 
-coverage: example_coverage
-	./example_coverage
-
-demo: demo_verif_flow
-	./demo_verif_flow
-
-regression: demo_regression
-	./demo_regression
-
-# Run all
-check: test assertions coverage
+# Run all examples
+run-examples: $(EXAMPLES)
+	@echo "Running FIFO verification example..."
+	@LD_LIBRARY_PATH=$(BUILDDIR):$$LD_LIBRARY_PATH $(BUILDDIR)/example_fifo_verify
+	@echo ""
+	@echo "Running RISC-V ALU verification example..."
+	@LD_LIBRARY_PATH=$(BUILDDIR):$$LD_LIBRARY_PATH $(BUILDDIR)/example_riscv_verify
+	@echo ""
+	@echo "Running AXI Bus verification example..."
+	@LD_LIBRARY_PATH=$(BUILDDIR):$$LD_LIBRARY_PATH $(BUILDDIR)/example_bus_verify
 
 # Clean
 clean:
-	del /Q *.o 2>nul
-	del /Q $(ALL_TARGETS:=.exe) 2>nul
-	del /Q $(ALL_TARGETS) 2>nul
+	rm -rf $(BUILDDIR)
+
+# Line count
+count:
+	@echo "=== Line Counts ==="
+	@echo "Headers:"
+	@wc -l $(INCDIR)/*.h
+	@echo ""
+	@echo "Sources:"
+	@wc -l $(SRCDIR)/*.c
+	@echo ""
+	@echo "Tests:"
+	@wc -l $(TESTDIR)/*.c
+	@echo ""
+	@echo "Examples:"
+	@wc -l $(EXDIR)/*.c
+	@echo ""
+	@echo "Total include/ + src/:"
+	@cat $(INCDIR)/*.h $(SRCDIR)/*.c | wc -l
+
+# Help
+help:
+	@echo "mini-hardware-verification Build System"
+	@echo "  make          - build everything"
+	@echo "  make test     - build and run tests"
+	@echo "  make examples - build examples"
+	@echo "  make clean    - remove build artifacts"
+	@echo "  make count    - line count statistics"

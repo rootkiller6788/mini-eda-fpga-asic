@@ -1,9 +1,60 @@
-CC=gcc ; CFLAGS=-std=c99 -Wall -Wextra -pedantic -O2 -Iinclude ; AR=ar ; ARFLAGS=rcs
-SRC_FILES=tensor_core.c dataflow_dse.c sparse_engine.c memory_hierarchy.c accel_roofline.c
-OBJ=$(SRC_FILES:%.c=src/%.o) ; LIB=libaiaccel.a
-.PHONY: all clean test
-all: $(LIB) ; $(CC) $(CFLAGS) examples/example_ai_accel.c -L. -laiaccel -lm -o examples/example_ai_accel.exe
-$(LIB): $(OBJ) ; $(AR) $(ARFLAGS) $@ $^
-src/%.o: src/%.c ; $(CC) $(CFLAGS) -c -o $@ $<
-test: all ; ./examples/example_ai_accel.exe
-clean: ; rm -f src/*.o $(LIB) examples/*.exe
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -std=c99 -I include
+LDFLAGS = -lm
+
+SRCDIR = src
+TSTDIR = tests
+EXDIR = examples
+DEMDIR = demos
+OUTDIR = bin
+
+SRCS = $(SRCDIR)/dnn_isa.c $(SRCDIR)/pe_microarch.c $(SRCDIR)/systolic_array.c \
+       $(SRCDIR)/buffer_hierarchy.c $(SRCDIR)/accel_roofline.c
+OBJS = $(SRCS:$(SRCDIR)/%.c=$(OUTDIR)/%.o)
+
+.PHONY: all test clean examples demos
+
+all: $(OUTDIR) $(OUTDIR)/test_accel.exe $(OUTDIR)/example_mnist.exe \
+     $(OUTDIR)/example_resnet.exe $(OUTDIR)/example_bert.exe $(OUTDIR)/demo_benchmark.exe
+
+$(OUTDIR):
+	-mkdir $(OUTDIR)
+
+$(OUTDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OUTDIR)/test_accel.exe: $(OBJS) $(TSTDIR)/test_accel.c
+	$(CC) $(CFLAGS) -o $@ $(TSTDIR)/test_accel.c $(OBJS) $(LDFLAGS)
+
+$(OUTDIR)/example_mnist.exe: $(OBJS) $(EXDIR)/example_mnist.c
+	$(CC) $(CFLAGS) -o $@ $(EXDIR)/example_mnist.c $(OBJS) $(LDFLAGS)
+
+$(OUTDIR)/example_resnet.exe: $(OBJS) $(EXDIR)/example_resnet.c
+	$(CC) $(CFLAGS) -o $@ $(EXDIR)/example_resnet.c $(OBJS) $(LDFLAGS)
+
+$(OUTDIR)/example_bert.exe: $(OBJS) $(EXDIR)/example_bert.c
+	$(CC) $(CFLAGS) -o $@ $(EXDIR)/example_bert.c $(OBJS) $(LDFLAGS)
+
+$(OUTDIR)/demo_benchmark.exe: $(OBJS) $(DEMDIR)/demo_benchmark.c
+	$(CC) $(CFLAGS) -o $@ $(DEMDIR)/demo_benchmark.c $(OBJS) $(LDFLAGS)
+
+test: $(OUTDIR)/test_accel.exe
+	$(OUTDIR)/test_accel.exe
+
+examples: $(OUTDIR)/example_mnist.exe $(OUTDIR)/example_resnet.exe $(OUTDIR)/example_bert.exe
+	@echo === MNIST Example ===
+	$(OUTDIR)/example_mnist.exe
+	@echo.
+	@echo === ResNet Example ===
+	$(OUTDIR)/example_resnet.exe
+	@echo.
+	@echo === BERT Example ===
+	$(OUTDIR)/example_bert.exe
+
+demos: $(OUTDIR)/demo_benchmark.exe
+	$(OUTDIR)/demo_benchmark.exe
+
+clean:
+	-del /Q $(OUTDIR)\*.o 2>nul
+	-del /Q $(OUTDIR)\*.exe 2>nul
+	-rmdir /S /Q $(OUTDIR) 2>nul

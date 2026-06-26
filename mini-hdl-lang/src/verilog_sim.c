@@ -205,7 +205,6 @@ void vs_run(VerilogSimulator *sim, VerilogTime end_time) {
 
 void vs_set_net_value(VerilogModule *mod, int net, VerilogValue val) {
     if (net < 0 || net >= mod->net_count) return;
-    VerilogValue old = mod->nets[net].value;
     mod->nets[net].value = val;
     mod->nets[net].driven = true;
 }

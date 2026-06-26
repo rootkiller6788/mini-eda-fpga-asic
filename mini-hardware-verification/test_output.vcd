@@ -1,0 +1,11 @@
+$date
+  Mini-Hardware-Verification Waveform
+$end
+$version
+  hv_sim_kernel v1.0
+$end
+$timescale 1ns $end
+$var wire 1 a clk $end
+$var wire 1 b rst_n $end
+$var wire 8 c count $end
+$enddefinitions $end

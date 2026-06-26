@@ -1,59 +1,90 @@
-/**
- * mini-fpga-dev FPGA Flow Demo
- * 演示 FPGA 开发完整流程：架构 → LUT映射 → CLB打包 → 布线 → 比特流
- */
-#include "fpga_arch.h"
-#include "lut_synth.h"
-#include "clb_pack.h"
-#include "routing_fabric.h"
-#include "bitstream.h"
+/* examples/fpga_demo.c - Complete FPGA Implementation Demo */
+#include "fpga_flow.h"
 #include <stdio.h>
 
 int main(void) {
-    printf("====== FPGA Development Flow Demo ======\n\n");
+    printf("===================================================\n");
+    printf("  Mini-FPGA-Dev: FPGA Implementation Flow Demo\n");
+    printf("===================================================\n\n");
 
-    printf("--- 1. FPGA Architecture ---\n");
-    FpgaArch arch;
-    fpga_arch_init(&arch, "Artix-7-mini", 4, 4);
-    fpga_arch_set_resources(&arch, 16, 4, 8, 32);
-    fpga_print_arch(&arch);
+    /* Configure the flow */
+    FpgaFlowConfig cfg;
+    flow_config_defaults(&cfg);
+    cfg.grid_width = 8;
+    cfg.grid_height = 8;
+    cfg.channel_width = 8;
+    cfg.lut_size = 4;
+    cfg.target_freq_mhz = 100.0;
+    cfg.verbose = false;
 
-    printf("\n--- 2. LUT Synthesis ---\n");
-    BooleanNetwork bn;
-    bool_net_init(&bn, 6);
-    int a = bool_net_add_input(&bn);
-    int b = bool_net_add_input(&bn);
-    int c = bool_net_add_input(&bn);
-    int ab = bool_net_add_and(&bn, a, b);
-    int notc = bool_net_add_not(&bn, c);
-    int root = bool_net_add_or(&bn, ab, notc);
-    printf("Built Boolean network: %d nodes, root=%d\n", bn.node_count, root);
+    printf("[Config] Grid: %dx%d, K=%d, W=%d, Target: %.0f MHz\n\n",
+           cfg.grid_width, cfg.grid_height, cfg.lut_size,
+           cfg.channel_width, cfg.target_freq_mhz);
 
-    LutInstance luts[10]; int lut_count = 0;
-    lut_map(&bn, luts, &lut_count, 10);
-    for (int i = 0; i < lut_count; i++) lut_print(&luts[i]);
+    /* Run the complete flow */
+    FpgaFlow flow;
+    flow_init(&flow, &cfg);
 
-    printf("\n--- 3. CLB Packing ---\n");
-    Packer packer;
-    packer_init(&packer, luts, lut_count);
-    pack_greedy(&packer);
-    pack_print(&packer);
+    printf("[Step 1] Running synthesis...\n");
+    if (flow_run_synthesis(&flow)) {
+        printf("  -> Created boolean network with %d nodes (%d PIs, %d POs)\n",
+               flow.bool_net.num_nodes, flow.bool_net.num_pi, flow.bool_net.num_po);
+    }
 
-    printf("\n--- 4. Routing ---\n");
-    RoutingFabric fab;
-    fabric_init(&fab, 4, 4, 10);
-    fabric_route_path(&fab, 0, 0, 2, 2, 1);
-    fabric_print(&fab);
+    printf("[Step 2] Running technology mapping (FlowMap)...\n");
+    if (flow_run_techmap(&flow)) {
+        printf("  -> Mapped to %d LUTs (max depth=%d)\n",
+               flow.lut_map.total_luts, flow.lut_map.max_depth);
+    }
 
-    printf("\n--- 5. Bitstream Generation ---\n");
-    Bitstream bs;
-    bitstream_init(&bs, "counter", "Artix-7-mini");
-    uint8_t cfg_data[] = {0xAA, 0x55, 0x0F};
-    bitstream_add_frame(&bs, FRAME_CLB_CFG, 0, cfg_data, 24);
-    bitstream_add_frame(&bs, FRAME_ROUTE_CFG, 1, cfg_data, 24);
-    bitstream_generate(&bs);
-    bitstream_print_summary(&bs);
-    bitstream_verify(&bs);
+    printf("[Step 3] Running CLB packing (T-VPack)...\n");
+    if (flow_run_packing(&flow)) {
+        printf("  -> Packed into %d CLBs (%d LUTs, %d FFs)\n",
+               flow.total_clbs, flow.total_luts, flow.total_ffs);
+    }
 
+    printf("[Step 4] Running placement (Simulated Annealing)...\n");
+    if (flow_run_placement(&flow)) {
+        printf("  -> Placed %d blocks, wirelength=%.1f\n",
+               flow.placement.num_blocks, flow.wirelength);
+    }
+
+    printf("[Step 5] Running routing (PathFinder)...\n");
+    if (flow_run_routing(&flow)) {
+        printf("  -> Routed %d nets (%d nodes in RR-graph)\n",
+               flow.routed_nets, flow.rr_graph->num_nodes);
+    }
+
+    printf("[Step 6] Running static timing analysis...\n");
+    if (flow_run_timing(&flow)) {
+        printf("  -> CP delay=%.2f ns, Fmax=%.1f MHz, Slack=%.2f ns\n",
+               flow.sta_result.critical_path_delay,
+               flow.sta_result.fmax,
+               flow.sta_result.worst_slack);
+    }
+
+    printf("[Step 7] Generating bitstream...\n");
+    if (flow_run_bitstream(&flow)) {
+        printf("  -> Generated %d configuration frames (%u bits)\n",
+               flow.bitstream->num_frames,
+               flow.bitstream->num_frames * FPGA_FRAME_BITS);
+    }
+
+    printf("[Step 8] Running I/O planning...\n");
+    if (flow_run_io_planning(&flow)) {
+        printf("  -> Planned %d I/O pads (%d signal, %d power, %d ground)\n",
+               flow.io_ring.num_pads,
+               flow.io_ring.total_signal_pads,
+               flow.io_ring.total_power_pads,
+               flow.io_ring.total_ground_pads);
+    }
+
+    printf("\n=== Full Report ===\n");
+    flow_print_report(&flow);
+
+    flow_destroy(&flow);
+    printf("\n===================================================\n");
+    printf("  Demo Complete!\n");
+    printf("===================================================\n");
     return 0;
 }
